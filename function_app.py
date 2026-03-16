@@ -1,39 +1,39 @@
 import azure.functions as func
-import urllib.request
 import json
+
+app = func.FunctionApp()
+
+# This function just takes the GitHub data and "saves" it to the queue
+@app.route(route="GithubWebhook", auth_level=func.AuthLevel.FUNCTION)
+@app.queue_output(arg_name="msg", queue_name="github-notifications", connection="AzureWebJobsStorage")
+def GithubWebhook(req: func.HttpRequest, msg: func.Out[str]) -> func.HttpResponse:
+    payload = req.get_json()
+    
+    # Push the raw JSON into the queue
+    msg.set(json.dumps(payload))
+    
+    return func.HttpResponse("Accepted into Queue", status_code=202)
+
 import os
+import urllib.request
 import logging
 
-# This is the "app" instance Azure is looking for!
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
-
-@app.route(route="HttpTrigger1")
-def HttpTrigger1(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Python HTTP trigger function processed a request.')
+# This function triggers whenever a message lands in the queue
+@app.queue_trigger(arg_name="azqueue", queue_name="github-notifications", connection="AzureWebJobsStorage")
+def QueueToSlack(azqueue: func.QueueMessage):
+    # 1. Get the data from the queue
+    payload = json.loads(azqueue.get_body().decode('utf-8'))
     
-    try:
-        # 1. Handle GitHub Ping vs Push
-        event = req.headers.get('X-GitHub-Event', 'unknown')
-        payload = req.get_json()
-        
-        if event == "ping":
-            return func.HttpResponse("Ping received!", status_code=200)
-
-        # 2. Extract info for Slack
-        repo_name = payload.get('repository', {}).get('name', 'Unknown Repo')
-        sender = payload.get('sender', {}).get('login', 'Someone')
-        
-        # 3. Send to Slack using environment variable
-        # We are adding emoji and bolding for a "Senior" look
-        repo_url = payload.get('repository', {}).get('html_url', '#')
-        msg = {
-            "text": f"🚨 *DevOps Alert* 🚨\n*User:* `{sender}`\n*Action:* Pushed to repo\n*Repository:* <{repo_url}|{repo_name}>\n---\n_Status: Automated via Azure Functions_"
-        }
-        data = json.dumps(msg).encode('utf-8')
-        req_slack = urllib.request.Request(slack_url, data=data, headers={'Content-Type': 'application/json'})
-        urllib.request.urlopen(req_slack)
-        
-        return func.HttpResponse("Success", status_code=200)
-    except Exception as e:
-        logging.error(f"Error: {str(e)}")
-        return func.HttpResponse(f"Runtime Error: {str(e)}", status_code=500)
+    # 2. Extract info
+    repo = payload.get('repository', {}).get('name', 'Unknown')
+    slack_url = os.environ.get('SLACK_WEBHOOK_URL')
+    
+    # 3. Try to send to Slack
+    msg = {"text": f"📢 *Queue Sentinel*: Change detected in `{repo}`"}
+    data = json.dumps(msg).encode('utf-8')
+    
+    req = urllib.request.Request(slack_url, data=data, headers={'Content-Type': 'application/json'})
+    
+    # If this line fails (e.g. Slack is down), the function throws an error.
+    # Azure will then RETRY this message automatically up to 5 times!
+    urllib.request.urlopen(req)
