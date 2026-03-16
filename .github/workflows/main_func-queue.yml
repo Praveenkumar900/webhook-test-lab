@@ -1,14 +1,10 @@
-name: Build and deploy Python project to Azure Function App - func-queue
+name: Test Environments and Gates
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-
-env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' 
-  PYTHON_VERSION: '3.12' 
 
 jobs:
   build:
@@ -17,74 +13,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: release.zip
+      - name: Simulate Build
+        run: |
+          echo "🔨 Building the Python application..."
+          echo "📦 Creating artifacts..."
+          echo "Done!"
 
   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
     needs: build
-    environment: Development  # Points to GitHub Environment 'Development'
+    environment: Development  # Connects to your 'Development' environment
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-
-      - name: Unzip artifact
-        run: unzip release.zip
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: 'Deploy to Dev Function'
-        uses: Azure/functions-action@v1
-        with:
-          app-name: 'func-queue-dev' # Your Dev Function App Name
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+      - name: Simulate Dev Deployment
+        run: |
+          echo "🚀 Deploying to Development environment..."
+          echo "Checking Dev Secrets..."
+          # This will show '***' if the secret exists, proving it's working
+          echo "Slack URL is: ${{ secrets.SLACK_WEBHOOK_URL }}" 
+          echo "✅ Dev Deployment Complete!"
 
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: deploy-dev # Production only starts after Dev succeeds
-    environment: Production  # Points to GitHub Environment 'Production'
+    needs: deploy-dev
+    environment: Production   # Connects to your 'Production' environment
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-
-      - name: Unzip artifact
-        run: unzip release.zip
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: 'Deploy to Prod Function'
-        uses: Azure/functions-action@v1
-        with:
-          app-name: 'func-queue' # Your Prod Function App Name
-          slot-name: 'Production'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+      - name: Simulate Prod Deployment
+        run: |
+          echo "🚀 Deploying to Production environment..."
+          echo "Slack URL is: ${{ secrets.SLACK_WEBHOOK_URL }}"
+          echo "✅ Production Deployment Complete!"
