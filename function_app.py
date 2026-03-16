@@ -4,27 +4,34 @@ import json
 import os
 import logging
 
-def main(req: func.HttpRequest) -> func.HttpResponse:
+# This is the "app" instance Azure is looking for!
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+@app.route(route="HttpTrigger1")
+def HttpTrigger1(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Python HTTP trigger function processed a request.')
+    
     try:
-        # 1. Get the event type from header
+        # 1. Handle GitHub Ping vs Push
         event = req.headers.get('X-GitHub-Event', 'unknown')
         payload = req.get_json()
         
-        # 2. Handle the 'ping' event separately
         if event == "ping":
             return func.HttpResponse("Ping received!", status_code=200)
 
-        # 3. Handle the 'push' event
-        repo_name = payload.get('repository', {}).get('name', 'Unknown')
-        msg = {"text": f"🔥 *Sentinel Alert*: Push detected in `{repo_name}`"}
+        # 2. Extract info for Slack
+        repo_name = payload.get('repository', {}).get('name', 'Unknown Repo')
+        sender = payload.get('sender', {}).get('login', 'Someone')
         
-        # 4. Post to Slack
+        # 3. Send to Slack using environment variable
         slack_url = os.environ.get('SLACK_WEBHOOK_URL')
+        msg = {"text": f"🚀 *Sentinel Alert*: `{sender}` just pushed to `{repo_name}`!"}
+        
         data = json.dumps(msg).encode('utf-8')
         req_slack = urllib.request.Request(slack_url, data=data, headers={'Content-Type': 'application/json'})
         urllib.request.urlopen(req_slack)
         
-        return func.HttpResponse("Slack Notified", status_code=200)
+        return func.HttpResponse("Success", status_code=200)
     except Exception as e:
         logging.error(f"Error: {str(e)}")
         return func.HttpResponse(f"Runtime Error: {str(e)}", status_code=500)
