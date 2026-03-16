@@ -24,9 +24,11 @@ def HttpTrigger1(req: func.HttpRequest) -> func.HttpResponse:
         sender = payload.get('sender', {}).get('login', 'Someone')
         
         # 3. Send to Slack using environment variable
-        slack_url = os.environ.get('SLACK_WEBHOOK_URL')
-        msg = {"text": f"🚀 *Sentinel Alert*: `{sender}` just pushed to `{repo_name}`!"}
-        
+        # We are adding emoji and bolding for a "Senior" look
+        repo_url = payload.get('repository', {}).get('html_url', '#')
+        msg = {
+            "text": f"🚨 *DevOps Alert* 🚨\n*User:* `{sender}`\n*Action:* Pushed to repo\n*Repository:* <{repo_url}|{repo_name}>\n---\n_Status: Automated via Azure Functions_"
+        }
         data = json.dumps(msg).encode('utf-8')
         req_slack = urllib.request.Request(slack_url, data=data, headers={'Content-Type': 'application/json'})
         urllib.request.urlopen(req_slack)
